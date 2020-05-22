@@ -98,6 +98,17 @@ score.sentiment = function(sentences, pos.words, neg.words, .progress='none')
   scores.df = data.frame(score=scores, text=sentences)
   return(scores.df)
 }
+require(corpus)
+require(RCurl)
+
+corpus = Corpus(VectorSource(some_txt))
+cloud <- tm_map(corpus, removePunctuation)
+cloud <- tm_map(cloud, removeNumbers)
+cloud <- tm_map(cloud, stripWhitespace)
+cloud
+# mambut wordcloud
+wordcloud(paste(cloud, collapse = " "), rot.per=0.25, random.order = FALSE,
+          random.color = TRUE, max.words = 100, colors = brewer.pal(8,"Dark2"))
 
 # dipanggil fungsi tadi dan dimasuki text, positive negative words
 hasil = score.sentiment(some_txt,pos.words,neg.words)
