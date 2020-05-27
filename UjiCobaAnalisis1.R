@@ -102,6 +102,7 @@ require(corpus)
 require(RCurl)
 
 corpus = Corpus(VectorSource(some_txt))
+str(corpus)
 cloud <- tm_map(corpus, removePunctuation)
 cloud <- tm_map(cloud, removeNumbers)
 cloud <- tm_map(cloud, stripWhitespace)
@@ -119,10 +120,13 @@ sum(hasil$score)
 hasil$klasifikasi<- ifelse(hasil$score>0,"Positif", ifelse (hasil$score<0,"Negatif", "Netral"))
 hasil$klasifikasi
 View(hasil)
+str(hasil)
 
 data <- hasil[c(3,1,2)]
 View(data)
-write.csv(data, file = "Label_Tweet_covid.csv")
+write.csv(hasil, file = "D:/Daigaku/praktikum2020/data-raw/hasil_covid.csv")
+library(here)
+here()
 text<-hasil[2]
 View(text)
 write.table(text, file = 'tweet_covid.txt', sep = '')
