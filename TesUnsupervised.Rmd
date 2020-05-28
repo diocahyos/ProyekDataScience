@@ -1,0 +1,187 @@
+---
+title: "Unsupervised learning"
+output: github_document
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+<!-- Baris kode di atas merupakan pengaturan untuk dokumen R Markdown dan tidak akan tercetak pada berkas dokumen akhir -->
+
+> Dalam modul ini Anda akan diajak untuk membuat pemodelan dan melakukan pengkategorian menggunakan model tersebut.
+
+Kita mungkin sudah terbiasa membaca narasi teks, seperti artikel, cerita pendek, cuitan twitter, atau bahkan buku dan novel. Seringkali secara tidak sadar kita melakukan pengkategorian atas narasi-narasi yang dibaca, bukan? Bagaimana caranya melakukan pengkategorian tersebut dengan menggunakan mesin/komputer?
+
+Dalam studi kasus selanjutnya kita akan melakukan pemodelan topik (*topic modeling*) untuk mengkategorikan topik dari buku cerita. Kita akan menggunakan beberapa paket untuk melakukan hal tersebut, diantaranya adalah `tidytext` dan `topicmodels`. Selain kedua paket tersebut aktifkanlah juga paket `vroom`, `here`, `dplyr`, dan `ggplot2`!
+
+```{r}
+library(tidytext)
+library(topicmodels)
+library(vroom)
+library(here)
+library(dplyr)
+library(ggplot2)
+```
+
+Pada subdirektori "data-raw" terdapat berkas bernama "sherlock.csv". Imporlah berkas tersebut menjadi obyek R bernama `sherlock`. Kita akan melakukan pengkategorian topik buku "The Adventures of Sherlock Holmes" karya Arthur Conan Doyle. Jangan lupa untuk melakukan inspeksi terhadap data `sherlock` tersebut.
+
+```{r}
+covid <- read.csv('D:\\Daigaku\\praktikum2020\\data-raw\\CoronavirusUSA_13_4_to_29_4-2020_Clean_Data3.csv')
+glimpse(covid)
+```
+
+Data `sherlock` tersebut berisi kolom "story" yang merupakan subcerita dari cerita keseluruhan dan kolom "text" yang merupakan naskah cerita pada setiap baris.
+Sekarang kita akan melakukan transformasi data untuk mencatat kata apa saja yang muncul untuk setiap subcerita. Jalankan *chunk* berikut dan simpanlah hasilnya sebagai obyek R bernama `sherlock_tidy`! 
+
+```{r}
+covid <- covid %>% 
+  mutate(timestamp = format(as.POSIXct(covid$timestamp,format='%m/%d/%Y%H:%M'),format='%m/%d/%Y'))
+glimpse(covid)
+
+# Pembersihan text
+  # akan dibuang kata - kata retweet
+  twet_text = gsub("b[[:punct:]]","",covid$tweet_text)
+  # dibuang mention - mention
+  twet_text = gsub("@\\w+","",twet_text)
+  # dibuang tanda baca
+  twet_text = gsub("[[:punct:]]","",twet_text)
+  # dibuang angka
+  twet_text = gsub("[[:digit:]]","",twet_text)
+  # dibuang link - link
+  twet_text = gsub("http\\w+","",twet_text)
+  # dibuang spasi yang tidak berguna
+  twet_text = gsub("[\t]{2,}","",twet_text)
+  twet_text = gsub("[\n]","",twet_text)
+  twet_text = gsub("^\\s+|\\s+$","",twet_text)
+  
+  covid %>% mutate(tweet_text = twet_text)
+```
+
+```{r}
+covid_tidy <- covid %>% 
+  filter(!is.na(tweet_text)) %>% 
+  mutate(tweet_text = as.character(tweet_text)) %>%
+  unnest_tokens(word, tweet_text) %>%
+  ungroup() %>%
+  anti_join(stop_words)
+
+covid_tidy
+```
+
+Analisa apa saja yang dilakukan pada setiap tahap transformasi data `sherlock` menjadi `sherlock_tidy`? Apa isi dari `stop_words`?
+
+Selanjutnya Kita dapat dapat mengetahui kata penting apa yang terdapat dapat suatu subcerita dengan menggunakan analisis Term Frequency - Inverse Document Frequency (tf-idf). Fungsi `bind_tf_idf()` dapat dimanfaatkan untuk melakukan hal tersebut. Simpanlah hasil keluaran fungsi tersebut dalam obyek bernama `sherlock_tfidf` dan cetaklah hasilnya pada layar!
+
+```{r}
+covid_tfidf <- covid_tidy %>% 
+  count(timestamp, word, sort = TRUE) %>% 
+  bind_tf_idf(timestamp,word, n)
+
+covid_tfidf
+```
+
+`sherlock_tfidf` tersebut akan lebih mudah dicerna jika ditampilkan dalam bentuk grafik. Pada *chunk* berikut kita akan memvisualisasikan data tersebut dengan menampilkan 15 kata terpenting untuk sucerita "ADVENTURE I. A SCANDAL IN BOHEMIA"
+
+```{r}
+covid_tfidf %>% 
+  filter(timestamp == "04/29/2020") %>% 
+  top_n(15, tf_idf) %>% 
+  ggplot(aes(x = reorder(word, tf_idf), y = tf_idf)) +
+  geom_col() +
+  coord_flip() +
+  labs(
+    x = "",
+    y = "tf-idf",
+    title = "Kata terpenting pada cerita Sherlock Holmes",
+    subtitle = "Subcerita 'Adventure I. A Scandal in Bohemia'"
+  ) +
+  theme_light()
+```
+
+Berdasarkan analisis tf-idf di atas kita dapat melihat bahwa masih banyak kata yang merupakan nama tokoh dalam cerita termasuk dalam kata penting. Apakah sebaiknya kita menghapus kata-kata tersebut terlebih dahulu sebelum melakukan pemodelan topik?
+
+Sekarang kita akan mulai melakukan pemodelan topik. Adapun algoritma yang akan kita pergunakan adalah Latent Dirichlet allocation (LDA). LDA merupakan algoritma yang biasa digunakan dalam pemodelan topik. Untuk menjalankan algoritma LDA dari paket `topicmodels`, `sherlock_tidy` harus diubah menjadi obyek berjenis DocumentTermMatrix dengan cara sebagai berikut:
+
+```{r}
+covid_dtm <- covid_tidy %>% 
+  count(timestamp, word) %>% 
+  cast_dtm(timestamp, word, n)
+
+covid_dtm
+```
+
+Selanjutnya kita dapat mengimplementasikan algoritma LDA dengan menggunakan fungsi `LDA()`. Pada fungsi ini kita harus menentukan nilai k, yaitu jumlah kategori topik yang diinginkan. Sebagai contoh kita akan menggunakan nilai k = 5.
+
+```{r}
+covid_lda <- LDA(covid_dtm, k = 5)
+
+covid_lda
+```
+
+Bagaimanakah kategorisasi subcerita Sherlock Holmes dalam 5 topik yang telah kita buat pemodelannya tersebut? Kita dapat mengetahuinya dengan cara mengamati peluang suatu topik per dokumen yang dinyatakan sebagai nilai $gamma$. Fungsi `tidy()` dari paket `broom` dapat digunakan untuk melakukan hal tersebut. Perhatikan contoh di bawah ini:
+
+```{r}
+covid_gamma <- covid_lda %>% 
+  tidy(matrix = "gamma") %>% 
+  rename(timestamp = document) %>% 
+  arrange(timestamp, desc(gamma))
+
+covid_gamma
+```
+
+Kesimpulan apa yang dapat Anda tarik berdasarkan `sherlock_gamma` di atas?
+
+Anda juga dapat membuat visualisasi untuk `sherlock_gamma` seperti ditunjukan pada *chunk* di bawah. Silakan Anda berikan kostumisasi pada grafik tersebut!
+
+```{r}
+covid_gamma %>% 
+  ggplot(aes(x = rev(timestamp), y = gamma, fill = factor(topic))) +
+  geom_col() +
+  coord_flip() +
+  labs(
+    x = ",",
+    y = expression(gamma),
+    title = "Subcerita Sherlock Holmes berdasarkan topik",
+    fill = "Topik"
+  ) +
+  theme_light()
+```
+
+Agar dapat memahami makna dari setiap topik, Anda dapat menghimpun kata-kata apa saja yang menjadi kunci dalam suatu topik. Hal tersebut dapat dilakukan dengan cara mengekstrak probabilitas kata dalam suatu topik yang dinyatakan sebagai nilai $beta$. Dalam *chunk* berikut kita akan menggunakan fungsi `tidy()` dari paket `broom` untuk mengekstrak nilai $beta$ dan selanjutnya menampilkan 10 kata teratas dari setiap topik:
+
+```{r}
+covid_beta <- covid_lda %>% 
+  tidy(matrix = "beta") %>% 
+  rename(word = term) %>% 
+  arrange(topic, desc(beta))
+
+covid_beta
+
+covid_beta %>% 
+  group_by(topic) %>% 
+  top_n(10, beta)  
+```
+
+Dapatkah Anda membuat visualisasi untuk `sherlock_beta`? Buatlah visualisasi untuk setidaknya 3 topik! (Petunjuk: baris kode serupa dengan kode untuk membuat visualisasi `sherlock_tfidf`)
+
+```{r}
+covid_beta %>% 
+  filter(topic == 1) %>% 
+  top_n(10, beta) %>% 
+  ggplot(aes(x = reorder(word, beta), y = beta)) +
+  geom_col() +
+  coord_flip() +
+  labs(
+    x = "",
+    y = expression(gamma),
+    title = "Kata kunci pada topik 1 cerita Sherlock Holmes"
+  ) +
+  theme_light()
+```
+
+Berikan interpretasi Anda terhadap hasil-hasil yang telah Anda dapatkan di atas!
+
+> Selamat Anda telah menyelesaikan modul Unsupervised Learning! Silakan jalankan "Ctrl + Shift + K" atau klik tombol "Knit" untuk membuat dokumen final.

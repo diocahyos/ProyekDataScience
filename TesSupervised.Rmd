@@ -1,0 +1,139 @@
+---
+title: "Supervised learning"
+output: github_document
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+<!-- Baris kode di atas merupakan pengaturan untuk dokumen R Markdown dan tidak akan tercetak pada berkas dokumen akhir -->
+
+> Dalam modul ini Anda akan diajak untuk membuat pemodelan dan melakukan prediksi menggunakan model tersebut.
+
+*Data modelling* dengan menggunakan pembelajaran mesin (*machine learning*) merupakan aktivitas yang seringkali dilakukan dalam siklus data science. Sangat menarik apabila memiliki kemampuan untuk membuat prediksi suatu hal sehingga kita dapat melakukan persiapan lebih matang.
+
+Bahasa pemrograman R memiliki fitur bawaan yang sangat mumpuni untuk melakukan pembelajaran mesin. Selain itu terdapat sangat banyak paket-paket tambahan lain yang dapat melengkapi dan memudahkan pengguna untuk melakukan prediksi dengan menggunakan metode-metode mutakhir.
+
+Namun keragaman dan banyaknya jumlah paket tersebut juga menyebabkan adanya hambatan lain, yaitu hambatan pada alur kerja. Seringkali beberapa paket memiliki tujuan dan metode yang sama namun menggunakan istilah berbeda dalam argumen serta keluaran fungsinya. Selain itu juga tidak jarang antar paket memiliki *API* yang berbeda-beda sehingga pengguna harus menyesuaikan bentuk data sebelum dapat digunakan oleh paket lainnya.
+
+Dalam modul ini kita akan memanfaatkan sebuah "sistem" bernama `tidymodels`. `tidymodels` dirancang untuk mengatasi permasalahan yang disebutkan diatas sehingga pengguna dapat melakukan pembelajaran mesin dengan lebih mudah. Silakan Anda aktifkan paket tersebut terlebih dahulu beserta paket `vroom` dan `here`!
+
+```{r}
+library(vroom)
+library(here)
+library(tidymodels)
+```
+
+Pada modul ini, kita akan langsung belajar menerapkan data modelling melalui studi kasus. Dalam studi kasus pertama, kita akan melakukan pemodelan dan prediksi untuk nilai ujian nasional tingkat SMP di Kota Bandung. Imporlah "un_smp.csv" yang berada dalam subdirektori "data-raw" dan simpan sebagai obyek R bernama `un_smp`. Selanjutnya jalankan fungsi `glimpse()` pada `un_smp` untuk mempelajari strurukturnya. (Catatan: `glimpse()` adalah fungsi dari paket `dplyr` yang serupa dengan fungsi `str()`)
+
+```{r}
+covid <- read.csv('D:\\Daigaku\\praktikum2020\\data-raw\\CoronavirusUSA_13_4_to_29_4-2020_Clean_Data3.csv')
+glimpse(covid)
+```
+
+Kita akan mencoba melakukan prediksi nilai ujian mata pelajaran IPA (`ipa`) berdasarkan variabel-variabel lain, yaitu `tahun`, `status`, `jumlah_peserta`, `bahasa_indonesia`, `bahasa_inggris`, dan `matematika`. Sebelum itu kita perlu mengubah tipe variabel `tahun` dari `dbl` menjadi `chr` sebagai berikut, cek hasil perubahannya dengan fungsi `glimpse()`:
+
+```{r}
+library(lubridate)
+covid <- covid %>% 
+  mutate(timestamp = format(as.POSIXct(covid$timestamp,format='%m/%d/%Y%H:%M'),format='%m/%d/%Y'))
+glimpse(covid)
+```
+
+Sebagai analisa lanjut, kita akan melakukan tahap pertama dari pembelajaran mesin, yaitu membagi data yang kita miliki ke dalam dua kelompok. Kelompok pertama disebut `data training` yang akan digunakan untuk membuat pemodelan. Sedangkan kelompok kedua disebut `data testing` yang akan digunakan untuk menguji performa model yang kita buat. Kita akan
+memanfaatkan fungsi `initial_split()` dari paket `rsample` untuk melakukan hal tersebut. Berapakah komposisi `training` terhadap `testing` bawaan pada fungsi tersebut? (Petunjuk: `?initial_split`)
+
+```{r}
+set.seed(270719)
+covid_split <- initial_split(covid)
+covid_split
+```
+
+`un_smp_split` merupakan obyek R yang memiliki metadata atau informasi baris mana dari data `un_smp` yang akan digunakan sebagai `data training` dan `data testing`. Kita dapat mengakses data `training` dengan cara menjalankan fungsi `training()` pada `un_smp_split`. Fungsi apakah yang akan digunakan untuk mengakses data `testing`? Coba buatlah baris kode untuk itu!
+
+
+**data `training`**
+```{r}
+training(covid_split) 
+```
+
+**data `testing`**
+```{r}
+testing(covid_split)
+```
+
+Sebelum membuat pemodelan, biasanya kita akan melakukan pre-processing pada data yang kita miliki terlebih dahulu. Hal tersebut penting dilakukan agar data tersebut dapat memenuhi prasyarat sehingga algoritma dari model dapat berjalan dengan baik dengan performa bagus. Contoh: pada metode regresi linear diharapkan tidak terjadi *multicolinearity* antar variabel prediktor; pada beberapa metode klasifikasi diharapkan agar skala yang digunakan adalah sama untuk semua prediktor; dan lain-lain.
+
+Dalam `tidymodels` tahap pre-processing tersebut dianalogikan sebagai "resep" sehingga dapat mudah dipahami. Kita dapat menggunakan fungsi `recipe()`, `update_role()`, dan `step_*()` dari paket `recipes` untuk membuat "resep" tersebut. Perhatikan baris kode berikut untuk membuat "resep" berdasarkan data `training`:
+
+```{r}
+covid_recipe <- training(covid_split) %>% 
+  recipe() %>% 
+  update_role(sentaiment_score, new_role = "outcome") %>% 
+  update_role(timestamp, all_hashtags,followers_count , new_role = "predictor") %>% 
+  update_role(tweet_text, new_role = "ID") %>% 
+  step_corr(all_predictors(), -timestamp, -all_hashtags)
+
+covid_recipe
+summary(covid_recipe)
+```
+
+Berdasarkan keluaran fungsi di atas informasi apakah yang dapat kita peroleh?
+
+Tahap selanjutnya adalah kita harus menerapkan "resep" yang telah di buat pada data yang kita miliki, baik pada data `training` maupun `testing`. Hal tersebut dapat dilakukan dengan menggunakan fungsi `prep()` dan `bake()` yang juga berasal dari paket `parsnip`. Setelah "resep" diterapkan kita perlu menyimpan hasilnya sebagai obyek R untuk selanjutnya malakukan pemodelan dan evaluasi performa. Perhatikan baris kode berikut untuk menerapkan "resep" serta menyimpannya obyek R dengan nama `un_smp_training` dan `un_smp_testing`. Jalankan `glimpse()` pada dua obyek tersebut! Dapatkah Anda menemukan perbedaan kedua obyek tersebut dengan `training(un_smp_split)` dan `testing(un_smp_split)`?
+
+```{r}
+covid_training <- covid_recipe %>% 
+  prep() %>% 
+  bake(training(covid_split))
+glimpse(covid_training)
+
+covid_testing <- covid_recipe %>% 
+  prep() %>% 
+  bake(testing(covid_split))
+glimpse(covid_testing)
+```
+
+Setelah Anda membagi data awal menjadi dua `training` dan `testing` serta menerapkan "resep" pra-pengolahan pada keduanya, sekarang saatnya Anda melakukan pemodelan. Dalam studi kasus ini kita akan menggunakan model Linear Regression
+
+Pertama kita akan membuat model regresi sebagai berikut:
+
+```{r}
+covid_lm <- linear_reg(mode = "regression") %>% 
+  set_engine("lm") %>% 
+  fit(sentaiment_score ~ . -tweet_text, data = covid_training)
+```
+
+Selanjutnya kita akan menguji performa model tersebut dengan menggunakan fungsi `metrics()` dari paket `yardstick`. Pengujian dilakukan terhadap data `testing` seperti contoh di bawah ini:
+```{r}
+covid_lm %>% 
+  predict(covid_testing) %>% 
+  bind_cols(covid_testing) %>% 
+  metrics(truth = sentaiment_score, estimate = .pred)
+```
+
+Kesimpulan apa yang dapat Anda ambil berdasarkan hasil diatas?
+
+Sekarang buatlah pemodelan dan pengujian performa seperti di atas namun menggunakan Random Forest! (Petunjuk: fungsi `rand_forest()` dan "mesin" adalah "ranger")
+
+```{r}
+covid_rf <- rand_forest(mode = "regression") %>% 
+  set_engine("ranger") %>% 
+  fit(sentaiment_score ~ . -tweet_text, data = covid_training)
+
+covid_rf
+```
+
+```{r}
+covid_rf %>% 
+  predict(covid_testing) %>% 
+  bind_cols(covid_testing) %>% 
+  metrics(truth = sentaiment_score, estimate = .pred)
+```
+
+Kesimpulan apa yang dapat Anda ambil berdasarkan hasil diatas?
+
+> Selamat Anda telah menyelesaikan modul Supervised Learning! Silakan jalankan "Ctrl + Shift + K" atau klik tombol "Knit" untuk membuat dokumen final.
