@@ -39,7 +39,7 @@ Sekarang kita akan melakukan transformasi data untuk mencatat kata apa saja yang
 ```{r}
 covid <- covid %>% 
   mutate(timestamp = format(as.POSIXct(covid$timestamp,format='%m/%d/%Y%H:%M'),format='%m/%d/%Y'))
-glimpse(covid)
+
 
 # Pembersihan text
   # akan dibuang kata - kata retweet
@@ -51,13 +51,14 @@ glimpse(covid)
   # dibuang angka
   twet_text = gsub("[[:digit:]]","",twet_text)
   # dibuang link - link
-  twet_text = gsub("http\\w+","",twet_text)
+  twet_text = gsub("https\\w+","",twet_text)
   # dibuang spasi yang tidak berguna
   twet_text = gsub("[\t]{2,}","",twet_text)
   twet_text = gsub("[\n]","",twet_text)
   twet_text = gsub("^\\s+|\\s+$","",twet_text)
-  
-  covid %>% mutate(tweet_text = twet_text)
+  twet_text = gsub("x\\w+","",twet_text)
+
+covid = covid %>% mutate(tweet_text = twet_text)
 ```
 
 ```{r}
@@ -81,24 +82,6 @@ covid_tfidf <- covid_tidy %>%
   bind_tf_idf(timestamp,word, n)
 
 covid_tfidf
-```
-
-`sherlock_tfidf` tersebut akan lebih mudah dicerna jika ditampilkan dalam bentuk grafik. Pada *chunk* berikut kita akan memvisualisasikan data tersebut dengan menampilkan 15 kata terpenting untuk sucerita "ADVENTURE I. A SCANDAL IN BOHEMIA"
-
-```{r}
-covid_tfidf %>% 
-  filter(timestamp == "04/29/2020") %>% 
-  top_n(15, tf_idf) %>% 
-  ggplot(aes(x = reorder(word, tf_idf), y = tf_idf)) +
-  geom_col() +
-  coord_flip() +
-  labs(
-    x = "",
-    y = "tf-idf",
-    title = "Kata terpenting pada cerita Sherlock Holmes",
-    subtitle = "Subcerita 'Adventure I. A Scandal in Bohemia'"
-  ) +
-  theme_light()
 ```
 
 Berdasarkan analisis tf-idf di atas kita dapat melihat bahwa masih banyak kata yang merupakan nama tokoh dalam cerita termasuk dalam kata penting. Apakah sebaiknya kita menghapus kata-kata tersebut terlebih dahulu sebelum melakukan pemodelan topik?
