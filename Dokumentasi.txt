@@ -1,0 +1,20 @@
+Library yg digunakan
+library(shiny)
+library(tm)
+library(wordcloud)
+library(tidytext)
+library(topicmodels)
+library(plyr)
+library(dplyr)
+library(ggplot2)
+library(sentimentr)
+
+Penyesuaian alamat untuk membaca File Dataset dan File positive dan ngeative
+Pada Line 24
+covid <- read.csv("D:/Daigaku/Praktikum/Data Science/ProyekDataScience/data-raw/coronavirususa_clean_data.csv")
+Sebelum ProyekDataScience ganti la dengan alamat sesuai dengan folder ProyekDataScience disimpan
+
+Pada line 145 dan 146
+pos = scan('D:/Daigaku/Praktikum/Data Science/ProyekDataScience/positive_words.txt',what='character', comment.char=';')
+neg = scan('D:/Daigaku/Praktikum/Data Science/ProyekDataScience/negative_words.txt',what='character', comment.char=';')
+Sama seperti sebelumnya sesuaikan dengan folder ProyekDataScience disimpan

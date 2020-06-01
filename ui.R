@@ -8,24 +8,26 @@
 #
 
 library(shiny)
-
+y = c(1,2,3,4,5)
 # Define UI for application that draws a histogram
 shinyUI(fluidPage( 
-    titlePanel("Sentiment Analysis"), #Title
+    titlePanel("Analisis Sentimen Tweet Corona Virus USA"), #Title
     textOutput("currentTime"),   #Here, I show a real time clock
     h4("Tweets:"),   #Sidebar title
     sidebarLayout(
         sidebarPanel(
+            selectInput("topic", label = h3("Topik"),
+                        choices = list("Topik" = y), selected = 1),
         ),
         # Show a plot of the generated distribution
         mainPanel(
             tabsetPanel(type = "tabs",
                         
-                        tabPanel("Plot Klasifikasi", plotOutput("distPlot")), # Plot
-                        tabPanel("Hasil Analisis Sentimen", DT::dataTableOutput('hasil')), # Data hasil analisis
-                        # tabPanel("Ringkasan Model", verbatimTextOutput("summary")), # output Regresi
-                        tabPanel("Word Cloud", plotOutput("wordcloud")), # Word cloud
-                        tabPanel("Data", DT::dataTableOutput('tbl')) # Data sebelum analisis
+                        tabPanel("Tweet Berdasarkan Topik", plotOutput("topic")), # Plot
+                        tabPanel("Kata kunci", plotOutput('kata')), # Data hasil analisis
+                        tabPanel("Plot Tweet", plotOutput("plot")), # BarPlot
+                        tabPanel("Data Klasifikasi", DT::dataTableOutput('hasil')), # Data sebelum analisis
+                        tabPanel("WordCloud", plotOutput('wordcloud')) # Word cloud
             )
             # plotOutput("distPlot"), #Here I will show the bars graph
             
